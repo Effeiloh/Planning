@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Planning de Florent</title>
+<style id="css">
+:root{--bg:#f6f5f1;--card:#fff;--tx:#1d1d1b;--mut:#4a4945;--bd:#e3e1da;--ac:#2f6fed;--w:#e3f1e6;--wt:#1d6b35;--o:#ecebe7;--ot:#55544f;--l:#fdf0d5;--lt:#8a5a00;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17171a;--card:#222226;--tx:#f0efeb;--mut:#a5a39d;--bd:#34343a;--ac:#6c9bff;--w:#1e3a28;--wt:#8fd6a3;--o:#2d2d32;--ot:#b5b3ad;--l:#40320f;--lt:#f2c46b;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#17171a;--card:#222226;--tx:#f0efeb;--mut:#a5a39d;--bd:#34343a;--ac:#6c9bff;--w:#1e3a28;--wt:#8fd6a3;--o:#2d2d32;--ot:#b5b3ad;--l:#40320f;--lt:#f2c46b;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:22px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+#app{max-width:640px;margin:0 auto;padding:16px}
+h1{font-size:36px;margin:4px 0 4px}
+.sub{color:var(--mut);font-size:20px;margin-bottom:16px}
+.nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px}
+.nav b{font-size:24px;text-align:center;flex:1}
+.nav button{font-size:34px;padding:6px 22px;line-height:1.1}
+button{font:inherit;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:12px;padding:14px 24px;cursor:pointer}
+button.p{background:var(--ac);border-color:var(--ac);color:#fff}
+.day{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:18px 18px;margin-bottom:12px}
+.day.today{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac)}
+.day.t-work{background:#fff;color:#1d1d1b}
+.day.t-work .note{color:#4a4945}
+.day.t-off{background:#111;color:#fff}
+.day.t-off:not(.today){border-color:#5a5a60}
+.day.t-off .note{color:#ddd}
+.day.t-off .badge{background:#fff;color:#111}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.dn{font-weight:700;font-size:26px;text-transform:capitalize}
+.badge{font-size:20px;font-weight:600;padding:5px 14px;border-radius:99px}
+.work{background:var(--w);color:var(--wt)}.off{background:var(--o);color:var(--ot)}.leave{background:var(--l);color:var(--lt)}
+.hrs{font-size:48px;font-weight:800;margin-top:8px;line-height:1.1}
+.note{color:var(--mut);font-size:22px;margin-top:4px}
+.ed{display:grid;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--bd)}
+.ed label{font-size:20px;color:var(--mut);display:grid;gap:4px}
+.ed input,.ed select{font:inherit;padding:12px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);width:100%}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.bar{display:flex;gap:8px;justify-content:flex-end;margin:14px 0}
+.msg{color:var(--mut);font-size:20px;text-align:center;min-height:24px}
+</style>
+</head>
+<body><div id="app"></div><script id="code">
+const HEAD=document.head.innerHTML;
+let D={days:{}};
+const T={work:'Travail',off:'Repos',leave:'Congé'};
+let canEdit=false,editing=false,dirty=false,sel=null,off=0,msg='';
+const app=document.getElementById('app');
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+function wk(o){const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7)+o*7);return d}
+function el(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+function fmt(d,o){return d.toLocaleDateString('fr-FR',o)}
+function render(){
+  app.textContent='';
+  app.append(el('h1',0,'Planning de Florent'));
+  app.append(el('div','sub',editing?'Mode modification — touche un jour pour le changer':'Mis à jour par Florent'));
+  const s=wk(off),e=new Date(s);e.setDate(e.getDate()+6);
+  const nav=el('div','nav');
+  const pb=el('button',0,'‹');pb.onclick=()=>{off--;sel=null;render()};
+  const nb=el('button',0,'›');nb.onclick=()=>{off++;sel=null;render()};
+  nav.append(pb,el('b',0,off===0?'Cette semaine':fmt(s,{day:'numeric',month:'short'})+' – '+fmt(e,{day:'numeric',month:'short'})),nb);
+  app.append(nav);
+  const today=iso(new Date());
+  for(let i=0;i<7;i++){
+    const d=new Date(s);d.setDate(d.getDate()+i);const k=iso(d);const v=D.days[k];
+    const c=el('div','day'+(k===today?' today':'')+(v&&v.t?' t-'+v.t:''));
+    const r=el('div','row');
+    r.append(el('span','dn',fmt(d,{weekday:'long',day:'numeric',month:'long'})));
+    if(v&&v.t)r.append(el('span','badge '+v.t,T[v.t]));
+    c.append(r);
+    if(v&&v.t==='work'&&(v.s||v.e))c.append(el('div','hrs',(v.s||'?')+' – '+(v.e||'?')));
+    if(v&&v.n)c.append(el('div','note',v.n));
+    if(editing){
+      c.style.cursor='pointer';
+      c.onclick=ev=>{if(ev.target.closest('.ed'))return;sel=sel===k?null:k;render()};
+      if(sel===k)c.append(editor(k));
+    }
+    app.append(c);
+  }
+  const bar=el('div','bar');
+  if(canEdit){
+    const b=el('button',0,editing?'Terminer':'Modifier');
+    b.onclick=()=>{editing=!editing;sel=null;render()};bar.append(b);
+    if(dirty){const p=el('button','p','Publier');p.onclick=save;bar.append(p)}
+  }
+  app.append(bar,el('div','msg',msg));
+}
+function editor(k){
+  const v=D.days[k]||(D.days[k]={});
+  const ed=el('div','ed');
+  const mk=(lab,inp)=>{const l=el('label',0,lab);l.append(inp);return l};
+  const sl=el('select');
+  [['','—'],['work','Travail'],['off','Repos'],['leave','Congé']].forEach(([a,b])=>{const o=el('option',0,b);o.value=a;if((v.t||'')===a)o.selected=true;sl.append(o)});
+  sl.onchange=()=>{v.t=sl.value;ch();render()};
+  ed.append(mk('Type de journée',sl));
+  if(v.t==='work'){
+    const two=el('div','two');
+    const a=el('input');a.type='time';a.value=v.s||'';a.onchange=()=>{v.s=a.value;ch()};
+    const b=el('input');b.type='time';b.value=v.e||'';b.onchange=()=>{v.e=b.value;ch()};
+    two.append(mk('Début',a),mk('Fin',b));ed.append(two);
+  }
+  const n=el('input');n.type='text';n.placeholder='Ex. : vol du soir, formation…';n.value=v.n||'';n.onchange=()=>{v.n=n.value;ch();render()};
+  ed.append(mk('Note',n));
+  return ed;
+}
+function ch(){dirty=true;msg=''}
+function build(){
+  const j=JSON.stringify(D).replace(/</g,'\\u003c'),S='script';
+  return '<!doctype html><html lang="fr"><head>'+HEAD+'</head><body><div id="app"></div><'+S+' id="data" type="application/json">'+j+'</'+S+'><'+S+' id="code">'+document.getElementById('code').textContent+'</'+S+'></body></html>';
+}
+async function save(){
+  try{
+    const a=await window.claude.use('artifact');
+    if(!a){msg='Publication indisponible ici.';render();return}
+    msg='Publication…';render();
+    await a.publish(build());
+  }catch(e){msg='Échec de la publication.';render()}
+}
+render();
+fetch('planning.json?'+Date.now()).then(r=>r.json()).then(j=>{D=j;render()}).catch(()=>{msg='Impossible de charger le planning.';render()});
+</script></body></html>
