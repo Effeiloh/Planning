@@ -16,6 +16,13 @@ h1{font-size:36px;margin:4px 0 4px}
 .nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px}
 .nav b{font-size:24px;text-align:center;flex:1}
 .nav button{font-size:34px;padding:6px 22px;line-height:1.1}
+.nav button.lab{flex:1;font-size:24px;font-weight:700;padding:14px 8px;line-height:1.2}
+.pick{background:var(--card);border:3px solid var(--ac);border-radius:16px;padding:16px;margin-bottom:12px;display:grid;gap:12px}
+.pick label{font-size:24px;font-weight:700;display:grid;gap:8px}
+.pick input{font:inherit;font-size:28px;padding:14px;border-radius:12px;border:2px solid var(--tx);background:var(--bg);color:var(--tx);width:100%}
+.pick button,.back{font-size:24px;font-weight:700;padding:16px}
+.back{width:100%;margin-bottom:12px}
+button:focus-visible,input:focus-visible{outline:4px solid var(--ac);outline-offset:2px}
 button{font:inherit;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:12px;padding:14px 24px;cursor:pointer}
 button.p{background:var(--ac);border-color:var(--ac);color:#fff}
 .day{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:18px 18px;margin-bottom:12px}
@@ -41,10 +48,9 @@ button.p{background:var(--ac);border-color:var(--ac);color:#fff}
 </style>
 </head>
 <body><div id="app"></div><script id="code">
-const HEAD=document.head.innerHTML;
 let D={days:{}};
 const T={work:'Travail',off:'Repos',leave:'Congé'};
-let canEdit=false,editing=false,dirty=false,sel=null,off=0,msg='';
+let canEdit=location.hash==='#modifier',editing=false,dirty=false,sel=null,off=0,pick=false,msg='';
 const app=document.getElementById('app');
 const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 function wk(o){const d=new Date();d.setHours(12,0,0,0);d.setDate(d.getDate()-((d.getDay()+6)%7)+o*7);return d}
@@ -56,10 +62,25 @@ function render(){
   app.append(el('div','sub',editing?'Mode modification — touche un jour pour le changer':'Mis à jour par Florent'));
   const s=wk(off),e=new Date(s);e.setDate(e.getDate()+6);
   const nav=el('div','nav');
-  const pb=el('button',0,'‹');pb.onclick=()=>{off--;sel=null;render()};
-  const nb=el('button',0,'›');nb.onclick=()=>{off++;sel=null;render()};
-  nav.append(pb,el('b',0,off===0?'Cette semaine':fmt(s,{day:'numeric',month:'short'})+' – '+fmt(e,{day:'numeric',month:'short'})),nb);
+  const pb=el('button',0,'‹');pb.setAttribute('aria-label','Semaine précédente');pb.onclick=()=>{off--;sel=null;pick=false;render()};
+  const nb=el('button',0,'›');nb.setAttribute('aria-label','Semaine suivante');nb.onclick=()=>{off++;sel=null;pick=false;render()};
+  const lb=el('button','lab',(off===0?'Cette semaine':fmt(s,{day:'numeric',month:'short'})+' – '+fmt(e,{day:'numeric',month:'short'}))+' ▾');
+  lb.setAttribute('aria-label','Choisir une date');lb.onclick=()=>{pick=!pick;render()};
+  nav.append(pb,lb,nb);
   app.append(nav);
+  if(pick){
+    const pk=el('div','pick');
+    const lab=el('label',0,'Aller à la date :');
+    const inp=el('input');inp.type='date';inp.value=iso(new Date());
+    inp.onchange=()=>{if(!inp.value)return;const d=new Date(inp.value+'T12:00:00');d.setDate(d.getDate()-((d.getDay()+6)%7));off=Math.round((d-wk(0))/604800000);pick=false;sel=null;render()};
+    lab.append(inp);
+    const td=el('button','p','Revenir à aujourd’hui');td.onclick=()=>{off=0;pick=false;sel=null;render()};
+    const cl=el('button',0,'Fermer');cl.onclick=()=>{pick=false;render()};
+    pk.append(lab,td,cl);app.append(pk);
+  }else if(off!==0){
+    const bk=el('button','back','Revenir à cette semaine');bk.onclick=()=>{off=0;sel=null;render()};
+    app.append(bk);
+  }
   const today=iso(new Date());
   for(let i=0;i<7;i++){
     const d=new Date(s);d.setDate(d.getDate()+i);const k=iso(d);const v=D.days[k];
@@ -104,18 +125,26 @@ function editor(k){
   return ed;
 }
 function ch(){dirty=true;msg=''}
-function build(){
-  const j=JSON.stringify(D).replace(/</g,'\\u003c'),S='script';
-  return '<!doctype html><html lang="fr"><head>'+HEAD+'</head><body><div id="app"></div><'+S+' id="data" type="application/json">'+j+'</'+S+'><'+S+' id="code">'+document.getElementById('code').textContent+'</'+S+'></body></html>';
-}
+function b64(s){return btoa(unescape(encodeURIComponent(s)))}
 async function save(){
+  const owner=location.hostname.split('.')[0],repo=location.pathname.split('/')[1]||'';
+  let tk='';try{tk=localStorage.getItem('gh_token')||''}catch(e){}
+  if(!tk){tk=(prompt('Colle ton jeton GitHub (une seule fois sur cet appareil) :')||'').trim();if(!tk)return}
+  const url='https://api.github.com/repos/'+owner+'/'+repo+'/contents/planning.json';
+  const hd={'Authorization':'Bearer '+tk,'Accept':'application/vnd.github+json'};
+  msg='Publication…';render();
   try{
-    const a=await window.claude.use('artifact');
-    if(!a){msg='Publication indisponible ici.';render();return}
-    msg='Publication…';render();
-    await a.publish(build());
-  }catch(e){msg='Échec de la publication.';render()}
+    const g=await fetch(url,{headers:hd});
+    if(g.status===401||g.status===403){try{localStorage.removeItem('gh_token')}catch(e){}msg='Jeton refusé. Réessaie avec un nouveau jeton.';render();return}
+    if(!g.ok){msg='Fichier introuvable (erreur '+g.status+').';render();return}
+    const sha=(await g.json()).sha;
+    const p=await fetch(url,{method:'PUT',headers:hd,body:JSON.stringify({message:'Mise à jour du planning',content:b64(JSON.stringify(D,null,1)),sha})});
+    if(!p.ok){msg='Échec de la publication (erreur '+p.status+').';render();return}
+    try{localStorage.setItem('gh_token',tk)}catch(e){}
+    dirty=false;msg='Publié. Visible pour ta mère dans 1 à 2 minutes.';render();
+  }catch(e){msg='Échec de la publication (réseau).';render()}
 }
+addEventListener('hashchange',()=>location.reload());
 render();
 fetch('planning.json?'+Date.now()).then(r=>r.json()).then(j=>{D=j;render()}).catch(()=>{msg='Impossible de charger le planning.';render()});
 </script></body></html>
