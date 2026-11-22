@@ -25,7 +25,9 @@ button:focus-visible,input:focus-visible,select:focus-visible,.day:focus-visible
 .pick button,.back{font-size:24px;font-weight:700;padding:16px}
 .back{width:100%;margin-bottom:12px}
 .day{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:18px;margin-bottom:12px}
-.day.today{border-color:var(--ac);box-shadow:0 0 0 1px var(--ac)}
+.day.today:not(.t-abs){background:#c8f0cf;color:#12301a;border-color:#7cc58a}
+.day.today:not(.t-abs) .note{color:#2c4a34}
+.day.today:not(.t-abs) .badge{background:#fff;color:#12301a}
 .day.t-work{background:#fff;color:#1d1d1b}
 .day.t-work .note{color:#4a4945}
 .day.t-off{background:#111;color:#fff}
